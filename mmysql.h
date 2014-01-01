@@ -10,3 +10,4 @@ extern bool doStatusSql(MYSQL *conn,char* sql,int& count);
 extern bool doUpdateSql(MYSQL *conn,char* sql);
 extern bool doStaticSql(MYSQL* conn,char* sql,std::string& retValue);
 extern MYSQL* closeMysql(MYSQL* conn);
+extern bool doQuerysql(MYSQL *conn,char* sql,int& count);

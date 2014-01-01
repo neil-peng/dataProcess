@@ -28,6 +28,7 @@
 #define SQLLEN 2048
 typedef std::vector<uint32_t> PSET;
 
+
 struct ConfData
 {
     //for store
@@ -46,6 +47,10 @@ struct ConfData
     std::string sourceDir;
     int sqlSplit;
     int dirSplit;
+    bool isDebug;
+    //for type
+    bool isOnlyType;
+    std::vector<std::string> typeDir;
 };
 
 struct DynamicInfo

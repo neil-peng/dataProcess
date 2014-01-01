@@ -26,6 +26,11 @@ class Adjust
     InfoStatus _status;
     DSET _baseVacancy;
     DSET _baseContainer;
+    PSET _specSet;
+    DSET _specDSet;
+    int _debug;
+    uint32_t _nowCount;
+    uint32_t _lastCount;
     bool _initMysql(char* ip, int port,const char* user, const char* pwd,const char* db);
     bool _initMc(char* ip, int port );
 
@@ -47,7 +52,8 @@ class Adjust
     static const int LevelBGAP;
     static const int eachPage;
 public: 
-    Adjust():_sqlIns(NULL),_mcIns(NULL){}
+    Adjust():_sqlIns(NULL),_mcIns(NULL){
+    }
     bool init(const ConfData&);// init sqlIns mcIns sepIns
     bool unInit();
     bool doAdjust();

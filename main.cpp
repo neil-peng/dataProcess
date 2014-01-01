@@ -2,6 +2,8 @@
 #include "specialPush.h"
 #include "./lib/lightConf/ConfigFile.h"
 #include "adjust.h"
+#include "typeProcess.h"
+
 ConfData loadConf()
 {
 	ConfData confData;
@@ -22,6 +24,15 @@ ConfData loadConf()
     	confData.width = (int) conf.Value("SPEC","sw");
     	confData.height = (int) conf.Value("SPEC","sh");
     	confData.dirSplit = (int) conf.Value("SPEC","dirSplit");
+    	confData.isDebug = (int) conf.Value("SPEC","debug");
+        confData.isOnlyType = (bool) conf.Value("CLASSIFY","only");
+        int typeDirCount = (int) conf.Value("CLASSIFY","count");
+        for(int i = 1 ; i<= typeDirCount;i++)
+        {
+            char tmp[128]="\0";
+            snprintf(tmp,128,"%d",i);
+            confData.typeDir.push_back((std::string)conf.Value("CLASSIFY",std::string(tmp)));
+        }
     	
     }
     catch(char const* msg)
@@ -36,30 +47,40 @@ ConfData loadConf()
 int main(int argc, char** argv)
 {
 	ConfData confData = loadConf();
-	Adjust* ins = new Adjust();
-	//SpecialPush* spIns = new SpecialPush();
+	//SpecialPush* spIns = new SpecialPush(confData);
+    if(!confData.isOnlyType)
+    {
+        Adjust* ins = new Adjust();
+    	if(!ins->init(confData))
+    	{	
+    		ins->unInit();
+    		delete ins;
+    		mylogF("adjust instance init fail");
+    		return -1;
+    	}    
+        if(!ins->doAdjust())
+    	{
+    		mylogF("do adjust fail");
+    		return -1;
+    	}
+    	if(!ins->fillbackMc())
+    	{
+    		mylogF("do fillback memecache fail");
+    		return -1;
+    	}
+    	mylog("adjust finish");
+        ins->unInit();
+        delete ins;
+    }
+    else
+    {
+         TypeProcess* type = new TypeProcess(confData);
+         type->doAddType();
+         delete type;
+    }
+
+
+
 	
-
-
-	if(!ins->init(confData))
-	{	
-		ins->unInit();
-		delete ins;
-		mylogF("adjust instance init fail");
-		return -1;
-	}
-	if(!ins->doAdjust())
-	{
-		mylogF("do adjust fail");
-		return -1;
-	}
-	if(!ins->fillbackMc())
-	{
-		mylogF("do fillback memecache fail");
-		return -1;
-	}
-	mylog("adjust finish");
-	ins->unInit();
-	delete ins;
     return 0;
 }

@@ -18,6 +18,38 @@ MYSQL* openMysql(const char* serv,int port,const char* user, const char* pwd,con
 }
 
 //select * from 
+bool doQuerysql(MYSQL *conn,char* sql,int& count)
+{
+  
+  MYSQL_ROW row;
+  MYSQL_FIELD *field;
+  MYSQL_RES *res=NULL;
+  if (mysql_query(conn, sql)) 
+  {
+      mylogF("MYSQL QUERY:%s", mysql_error(conn));
+      exit(0);
+  }
+  
+  res = mysql_store_result(conn);
+  int num_fields=0;
+  if( 1!= (num_fields =mysql_num_fields(res)) )
+      return false;
+  if(res!=NULL)
+  {
+    
+      while( row = mysql_fetch_row(res))
+      { 
+          count = atoi(row[0]);
+        
+      }
+      mysql_free_result(res);
+      return true;
+  }
+  
+  return false;
+}
+
+//select * from 
 bool doDynamicSql(MYSQL *conn,char* sql,DSET& container)
 {
   

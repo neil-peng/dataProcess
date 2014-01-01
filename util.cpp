@@ -68,3 +68,27 @@ std::string getRandString(int low,int high)
     std::string ret(str);
     return ret;
 }
+
+
+void printDset(const DSET& container)
+{
+    
+    mylogD("====================print dset======================================");
+    for(DynamicInfo each : container)
+    {
+        mylogS(" %d_%d ",each.pid,each.pageIndex);
+    }
+    mylogD("\n====================================================================");
+    
+}
+
+void printPset(const PSET& container, int pi)
+{
+
+    mylogD("====================print pset======================================");
+    for(uint32_t each : container)
+    {
+        mylogS(" %d_%d ",each,pi);
+    }
+    mylogD("\n====================================================================");
+}

@@ -2,31 +2,12 @@
 #include "util.h"
 #include <algorithm> 
 #include <set>
+
 static const int Adjust::LevelACount = 30;
 static const int Adjust::LevelBCount = 30;
 static const int Adjust::LevelAGAP = 6;
 static const int Adjust::LevelBGAP = 9;
 static const int Adjust::eachPage = 12;
-
-static void printDset(const DSET& container)
-{
-    mylogD("====================print dset======================================");
-    for(DynamicInfo each : container)
-    {
-        mylogS(" %d_%d ",each.pid,each.pageIndex);
-    }
-    mylogD("\n====================================================================");
-}
-
-static void printPset(const PSET& container, int pi)
-{
-    mylogD("====================print dset======================================");
-    for(uint32_t each : container)
-    {
-        mylogS(" %d_%d ",each,pi);
-    }
-    mylogD("\n====================================================================");
-}
 
 template<typename T>
 std::vector<T> subSET(std::vector<T>& leader, int count)
@@ -76,8 +57,10 @@ bool Adjust::init(const ConfData& conf)
    // if(_status.size()==0)
    //     return false;
     _sqlSplit = conf.sqlSplit;
+    _debug = conf.isDebug;
     if(_speIns.init(conf))
         return true;
+    
     return false;
 }
 
@@ -111,7 +94,6 @@ bool Adjust::_initMc(char* ip, int port )
 }
 
 
-
 DSET Adjust::_getPageIndexSet(int pageIndex)
 {
     char sql[SQLLEN]={0};
@@ -120,7 +102,8 @@ DSET Adjust::_getPageIndexSet(int pageIndex)
     if( false == doDynamicSql(_sqlIns,sql,container))
     {
        mylogD("print get pageIndex set print dset: %d",pageIndex);
-       printDset(container);
+       if(_debug)
+            printDset(container);
        mylogD("do dynamic sql err");
        container.clear(); 
        return container;
@@ -128,8 +111,6 @@ DSET Adjust::_getPageIndexSet(int pageIndex)
    // mylogD("container size:%d,sql : %s",container.size(),sql);
     return container;
 }
-
-
 
 
 bool Adjust::_updateEachpage(int pageIndex,const PSET &  newComer)
@@ -146,7 +127,8 @@ bool Adjust::_updateEachpage(int pageIndex,const PSET &  newComer)
             ,pageIndex,each);
         if(doUpdateSql(_sqlIns,sql)!=true)
             ret = false;
-        mylogD("update each page index:%d,sql:%s, ret:%d",pageIndex,sql,ret);
+        if(_debug)
+            mylogD("update each page index:%d,sql:%s, ret:%d",pageIndex,sql,ret);
     }
     return ret;
 }
@@ -155,7 +137,8 @@ bool Adjust::_setbackBase(const DSET& setback)
 {
     bool ret = true;
     mylogD("print set back base dset");
-    printDset(setback);
+    if(_debug)
+        printDset(setback);
     for(DynamicInfo each: setback)
     {
         char sql[SQLLEN]={0};
@@ -170,7 +153,7 @@ bool Adjust::_setbackBase(const DSET& setback)
 }
 
 /*
-* 改进如何更随机或者选则推更好??
+* 改进如何更随机或者选则会更好??
 */
 PSET Adjust::_getGapSet(int pageIndex , int gapNum)
 {
@@ -178,9 +161,10 @@ PSET Adjust::_getGapSet(int pageIndex , int gapNum)
     // sort pISet ,the lastest weight pids, if more than gapNum ,get rand
     std::sort(pISet.begin(), pISet.end(), std::less<DynamicInfo>());
     PSET ret;
+    ret.clear();
     if(pISet.size()<gapNum)
     {
-        mylogF("err in %s:%d, piset: %d,gapNum:%d, pageIndex:%d",__func__,__LINE__,pISet.size(),gapNum,pageIndex);
+        mylogF("getGap too small , err in %s:%d, piset: %d,gapNum:%d, pageIndex:%d",__func__,__LINE__,pISet.size(),gapNum,pageIndex);
         return ret;
     }
     for(int i=0;i<gapNum;++i)
@@ -190,7 +174,10 @@ PSET Adjust::_getGapSet(int pageIndex , int gapNum)
     return ret;
 }
 
-//get bases pid list, and  all index from 0 ---
+/*
+*   get bases pid list, and  all index from 0 ---
+*
+*/
 PSET Adjust::_getAllLuckFromBase(int luckNum)
 {
     PSET ret;
@@ -202,18 +189,16 @@ PSET Adjust::_getAllLuckFromBase(int luckNum)
         mylogF("get all luck err");
         return ret;
     }
-    //make querty sql and push dynamic info into _baseVacancy
-    // ...
-    //InfoStatus stus = _getInfoStatus();
-   // int count = _speIns.getAllCount();
-    int count = 0;
+
+    int count = _lastCount;
     char sql[1024]="0";
+    //获取上一次目前图片总数
+    /*
     snprintf(sql,1024,"select count from info_status where uniq = 0;");
     doStatusSql(_sqlIns,sql,count);
-   // if(stus.size()==0)
-   //     return ret;
-    //get base page index range
-    mylogD("all pid count is %d",count);
+    */
+
+    mylogD("last all pid count is %d",count);
 
     if(count%eachPage==0)
         end = count/eachPage -1;
@@ -223,7 +208,7 @@ PSET Adjust::_getAllLuckFromBase(int luckNum)
     beg = LevelACount + LevelBCount;
     if(beg>=end)
     {
-        mylogF("inner logic err in %s:%d",__func__,__LINE__);
+        mylogF("inner logic err in %s:%d, beg : %d, end :%d",__func__,__LINE__,beg,end);
         return ret;
     }
     //random to get some pages in bases,each one get a pid
@@ -251,11 +236,14 @@ PSET Adjust::_getAllLuckFromBase(int luckNum)
         ret.push_back(luckSet[2]);
         ret.push_back(luckSet[3]);
         ret.push_back(luckSet[4]);
-
         addSET(_baseContainer,psetTodset(luckSet,pIndex));
     }
+    
+    addSET(_baseContainer,_specDSet);
+    addSET(ret,_specSet);
     mylogD("print get from base dset");
-    printDset(_baseContainer);
+    if(_debug)
+        printDset(_baseContainer);
     return ret;
 }
 
@@ -265,8 +253,9 @@ PSET Adjust::_getALuckFromBase(int luckNum)
     lset.clear();
     if(_baseContainer.size()<luckNum)
     {
-        mylogD("get a luck from base finished");
-        return lset;
+        mylogF("get a luck from base fail!!!");
+        exit(1);
+        //return lset;
     }   
     
     for(int i=0;i<luckNum;++i)
@@ -286,11 +275,25 @@ PSET Adjust::_adjustLevelA()
     PSET retLeft;
     retLeft.clear();
     int spcialCount;
-    if(_speIns.getSpecialPush()<0)
+    if((spcialCount = _speIns.getSpecialPush())<0)
         spcialCount = 0;
-    mylogD("spe dir gets :%d",spcialCount); 
-    uint32_t needBase = LevelACount*LevelAGAP + LevelBCount*LevelBGAP - spcialCount;
+    mylogD("spe dir return :%d",spcialCount); 
+    _nowCount = _speIns.getAllCount();
+    _lastCount = _speIns.getLastCount();
+    _specSet = _speIns.getSpecSet();
+    _specDSet = _speIns.getSpecDSet();
+    if(_debug)
+    {
+        mylogD("print the spec pset, index = -1 for nothing");
+        printPset(_specSet,-1);
+    }
+    mylogD("GET PID COUNT : NOW:%d, LAST:%d",_nowCount,_lastCount);
 
+    //uint32_t needBase = LevelACount*LevelAGAP + LevelBCount*LevelBGAP - spcialCount;
+    uint32_t needBase = LevelBCount*LevelBGAP + LevelACount*LevelAGAP;
+    /*
+    * 防止频繁的更新， spec 推送目录不大于100张 ,确保新增都替换到levelA中
+    */
     if(spcialCount>100)
     {
         mylogF("check the special dir , too many imgs!");
@@ -306,13 +309,15 @@ PSET Adjust::_adjustLevelA()
         newComer.clear();
         PSET gapSet = _getGapSet(pageIndex,gapCount);
         mylogD("print adjust A , get gap index:%d, pset",pageIndex); 
-        printPset(gapSet,pageIndex);
+        if(_debug)
+            printPset(gapSet,pageIndex);
         mylogD("adjust A index: %d, getGapSize: %d",pageIndex,gapSet.size());
         if(gapSet.size()<gapCount)
         {
             retLeft.clear();
             return retLeft;
         }       
+       /*
         if( spcialCount > 0 )
         {
             int eachGapLeft = gapCount  >= spcialCount ?   (gapCount-spcialCount) : 0 ;
@@ -329,9 +334,10 @@ PSET Adjust::_adjustLevelA()
             }
         }
         else
-        {
-           addSET( newComer ,_getALuckFromBase(gapCount));
-        }
+       */
+        //{
+        addSET( newComer ,_getALuckFromBase(gapCount));
+        //}
         if(newComer.size()!=gapCount)
             mylogD("logic err in %s:%d, newComer:%d, gapCount:%d  ",__func__,__LINE__,newComer.size(),gapCount);   
         _updateEachpage(pageIndex,newComer);
@@ -363,7 +369,8 @@ PSET Adjust::_adjustLevelB(const PSET& lastLeft)
        PSET gapSet = _getGapSet(pageIndex,gapCount); 
 
        mylogD("adjust b , get gap index:%d",pageIndex);
-       printPset(gapSet,pageIndex);
+       if(_debug) 
+            printPset(gapSet,pageIndex);
        if(lastCount>0)
        {
             uint32_t eachGapLeft = gapCount  > lastCount ?  (gapCount - lastCount) : 0 ;
@@ -436,7 +443,8 @@ std::string Adjust::_makeMcIndex(const DSET& container )
         */
         snprintf(sql,128,"select index_path from info_static_%d where pid = %d ",pid/_sqlSplit,pid);
         //snprintf(spid,128,"%d",each.pid);
-        mylogD("sql: %s",sql);
+        if(_debug)
+            mylogD("sql: %s",sql);
         if(doStaticSql(_sqlIns,sql,picInfo)!=true)
             continue;
         //mylogD("pid: %d ,picInfo:%s ",pid,picInfo.c_str());
@@ -474,7 +482,10 @@ bool Adjust::fillbackMc()
             return false;
         std::string pidSet  = _makeMcIndex(container); 
         if(!setMc(_mcIns,pIndex,pidSet.c_str()))
+        {
+            mylogD("set back mc fail");
             return false;
+        }
     }
     return true;
 }
